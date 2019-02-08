@@ -5,8 +5,8 @@ function _init()
  t=0
  p_ani={240,241,242,243}
  
- dirx={-1,1,0,0}
- diry={0,0,-1,1}
+ dirx={-1,1,0,0,1,1,-1,-1}
+ diry={0,0,-1,1,-1,1,1,-1}
  
  _upd=update_game
  _drw=draw_game
@@ -37,15 +37,21 @@ function startgame()
  p_t=0
  
  wind={}
- 
- addwind(32,64,64,24,{"hello world","this is line 2"})
+ talkwind=nil
 end
 -->8
 --updates
 function update_game()
- dobuttbuff()
- dobutt(buttbuff)
- buttbuff=-1
+ if talkwind!=nil then
+  if getbutt()==5 then
+   talkwind.dur=0
+   talkwind=nil
+  end
+ else
+  dobuttbuff()
+  dobutt(buttbuff)
+  buttbuff=-1
+ end
 end
 
 function update_pturn()
@@ -125,7 +131,14 @@ function drawspr(_spr,_x,_y,_c,_flip)
 end
 
 function rectfill2(_x,_y,_w,_h,_c)
- rectfill(_x,_y,_x+_w-1,_y+_h-1,_c)
+ rectfill(_x,_y,_x+max(_w-1,0),_y+max(_h-1,0),_c)
+end
+
+function oprint8(_t,_x,_y,_c,_c2)
+ for i=1,8 do
+  print(_t,_x+dirx[i],_y+diry[i],_c2)
+ end 
+ print(_t,_x,_y,_c)
 end
 -->8
 --gameplay
@@ -176,6 +189,16 @@ function trig_bump(tle,destx,desty)
   --door
   sfx(62)
   mset(destx,desty,1)
+ elseif tle==6 then
+  --stone tablet
+  --showmsg("hello world",120)
+  if destx==2 and desty==5 then
+   showmsg({"welcome to porklike","","climb the tower","to obtain the","golden kielbasa"})
+  elseif destx==13 and desty==12 then
+   showmsg({"this is the 2nd message"})
+  elseif destx==13 and desty==6 then
+   showmsg({"you're almost there!"})
+  end
  end
 end
 -->8
@@ -205,7 +228,35 @@ function drawind()
    print(txt,wx,wy,6)
    wy+=6
   end
+  clip()
+ 
+  if w.dur!=nil then
+   w.dur-=1
+   if w.dur<=0 then
+    local dif=w.h/4
+    w.y+=dif/2
+    w.h-=dif
+    if w.h<3 then
+     del(wind,w)
+    end
+   end
+  else
+   if w.butt then
+    oprint8("❎",wx+ww-15,wy-1+sin(time()),6,0)
+   end
+  end
  end
+end
+
+function showmsg(txt,dur)
+ local wid=(#txt+2)*4+7
+ local w=addwind(63-wid/2,50,wid,13,{" "..txt})
+ w.dur=dur
+end
+
+function showmsg(txt)
+ talkwind=addwind(16,50,94,#txt*6+7,txt)
+ talkwind.butt=true
 end
 __gfx__
 000000000000000060666060000000000000000000000000aaaaaaaa00aaa00000aaa00000000000000000000000000000aaa000a0aaa0a0a000000055555550
