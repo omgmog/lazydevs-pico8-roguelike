@@ -5,7 +5,6 @@ function _init()
  t=0
  
  dpal={0,1,1,2,1,13,6,4,4,9,3,13,1,13,14}
- p_ani={240,241,242,243}
  
  dirx={-1,1,0,0,1,1,-1,-1}
  diry={0,0,-1,1,-1,1,1,-1}
@@ -88,7 +87,7 @@ function update_pturn()
  dobuttbuff()
  p_t=min(p_t+0.125,1)
 
- p_mob.mov(p_mob,p_t)
+ p_mob:mov()
  
  if p_t==1 then
   _upd=update_game
@@ -103,7 +102,7 @@ function update_aiturn()
  p_t=min(p_t+0.125,1)
  for m in all(mob) do
   if m!=p_mob and m.mov then
-   m.mov(m,p_t)
+   m:mov()
   end
  end
  if p_t==1 then
@@ -156,13 +155,10 @@ function draw_game()
    del(dmob,m)
   end
  end
-
- for m in all(mob) do
-  if m!=p_mob then
-   drawmob(m)
-  end
+ 
+ for i=#mob,1,-1 do
+  drawmob(mob[i])
  end
- drawmob(p_mob)
  
  for x=0,15 do
   for y=0,15 do
@@ -226,7 +222,7 @@ function dofade()
  local p,kmax,col,k=flr(mid(0,fadeperc,1)*100)
  for j=1,15 do
   col = j
-  kmax=flr((p+(j*1.46))/22)
+  kmax=flr((p+j*1.46)/22)
   for k=1,kmax do
    col=dpal[col]
   end
@@ -290,13 +286,13 @@ function moveplayer(dx,dy)
   _upd=update_pturn
   
   local mob=getmob(destx,desty)
-  if mob==false then
+  if mob then
+   sfx(58)
+   hitmob(p_mob,mob)
+  else
    if fget(tle,1) then
     trig_bump(tle,destx,desty)
    end
-  else
-   sfx(58)
-   hitmob(p_mob,mob)
   end
  end
  unfog()
@@ -338,16 +334,17 @@ function getmob(x,y)
 end
 
 function iswalkable(x,y,mode)
- if mode== nil then mode="" end
+ local mode = mode or "test"
+ 
  --sight
  if inbounds(x,y) then
   local tle=mget(x,y)
   if mode=="sight" then
    return not fget(tle,2)
   else
-   if fget(tle,0)==false then
+   if not fget(tle,0) then
     if mode=="checkmobs" then
-     return getmob(x,y)==false
+     return not getmob(x,y)
     end
     return true
    end
@@ -391,31 +388,26 @@ function los(x1,y1,x2,y2)
  --★
  if dist(x1,y1,x2,y2)==1 then return true end
  if x1<x2 then
-  sx=1
-  dx=x2-x1
+  sx,dx=1,x2-x1
  else
-  sx=-1
-  dx=x1-x2
+  sx,dx=-1,x1-x2
  end
  if y1<y2 then
-  sy=1
-  dy=y2-y1
+  sy,dy=1,y2-y1
  else
-  sy=-1
-  dy=y1-y2
+  sy,dy=-1,y1-y2
  end
- local err, e2 = dx-dy, nil
+ local err,e2=dx-dy
  
  while not(x1==x2 and y1==y2) do
   if not frst and iswalkable(x1,y1,"sight")==false then return false end
-  frst=false
-  e2=err+err
+  e2,frst=err+err,false
   if e2>-dy then
-   err=err-dy
+   err-=dy
    x1=x1+sx
   end
-  if e2<dx then
-   err=err+dx
+  if e2<dx then 
+   err+=dx
    y1=y1+sy
   end
  end
@@ -426,7 +418,8 @@ function unfog()
  local px,py=p_mob.x,p_mob.y
  for x=0,15 do
   for y=0,15 do 
-   if dist(px,py,x,y)<=p_mob.los and los(px,py,x,y) then
+   --★
+   if fog[x][y]==1 and dist(px,py,x,y)<=p_mob.los and los(px,py,x,y) then
     unfogtile(x,y)
    end
   end
@@ -472,7 +465,7 @@ function drawind()
   end
   clip()
  
-  if w.dur!=nil then
+  if w.dur then
    w.dur-=1
    if w.dur<=0 then
     local dif=w.h/4
@@ -566,27 +559,22 @@ function mobbump(mb,dx,dy)
 end
 
 function mobflip(mb,dx)
- if dx<0 then
-  mb.flp=true
- elseif dx>0 then
-  mb.flp=false   
- end
+ mb.flp = dx==0 and mb.flp or dx<0
+
 end
 
 
-function mov_walk(mob,at)
- mob.ox=mob.sox*(1-at)
- mob.oy=mob.soy*(1-at)
+function mov_walk(self)
+ local tme=1-p_t 
+ self.ox=self.sox*tme
+ self.oy=self.soy*tme
 end
 
-function mov_bump(mob,at)
- --★
- local tme=at 
- if at>0.5 then
-  tme=1-at
- end
- mob.ox=mob.sox*tme
- mob.oy=mob.soy*tme
+function mov_bump(self)
+ --★ 
+ local tme= p_t>0.5 and 1-p_t or p_t
+ self.ox=self.sox*tme
+ self.oy=self.soy*tme
 end
 
 function doai()
