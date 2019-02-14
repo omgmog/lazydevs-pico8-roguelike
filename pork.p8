@@ -14,8 +14,8 @@ function _init()
  mob_hp ={100,2}
  mob_los={4,4}
  
- itm_name={"broad sword","leather armor","red potion"}
- 
+ itm_name={"broad sword","leather armor","red bean paste","ninja star"}
+ itm_type={"wep","arm","fud","thr"}
  debug={}
  startgame()
 end
@@ -67,6 +67,7 @@ function startgame()
  takeitem(1)
  takeitem(2)
  takeitem(3)
+ takeitem(4)
  
  wind={}
  float={}
@@ -97,20 +98,34 @@ end
 
 function update_inv()
  --inventory
- move_mnu(invwind)
+ move_mnu(curwind)
  if btnp(4) then
-  _upd=update_game
-  invwind.dur=0
-  statwind.dur=0
+  if curwind==invwind then
+   _upd=update_game
+   invwind.dur=0
+   statwind.dur=0
+  --★
+  elseif curwind==usewind then
+   usewind.dur=0
+   curwind=invwind
+  end
+ elseif btnp(5) then
+  if curwind==invwind and invwind.cur!=3 then
+   showuse()
+   --★
+  elseif curwind==usewind then
+   -- use window confirm  
+  end
  end
 end
 
 function move_mnu(wnd)
  if btnp(2) then
-  wnd.cur=max(1,wnd.cur-1)
+  wnd.cur-=1
  elseif btnp(3) then
-  wnd.cur=min(#wnd.txt,wnd.cur+1)
+  wnd.cur+=1
  end
+ wnd.cur=(wnd.cur-1)%#wnd.txt+1
 end
 
 
@@ -520,7 +535,7 @@ function drawind()
   wx+=4
   wy+=4
   clip(wx,wy,ww-8,wh-8)
-  if w.curmode then
+  if w.cur then
    wx+=6
   end
   for i=1,#w.txt do
@@ -589,19 +604,15 @@ function dohpwind()
 end
 
 function showinv()
- local txt,col={},{}
+ local txt,col,itm,eqt={},{}
  _upd=update_inv
  for i=1,2 do
-  local itm,eqt=eqp[i]
+  itm=eqp[i]
   if itm then
    eqt=itm_name[itm]
    add(col,6)
   else
-   if i==1 then
-    eqt="[weapon]"
-   else
-    eqt="[armor]"
-   end
+   eqt= i==1 and "[weapon]" or "[armor]"
    add(col,5)
   end
   add(txt,eqt)
@@ -609,7 +620,7 @@ function showinv()
  add(txt,"……………………")
  add(col,6)
  for i=1,6 do
-  local itm=inv[i]
+  itm=inv[i]
   if itm then
    add(txt,itm_name[itm])
    add(col,6)
@@ -620,12 +631,34 @@ function showinv()
  end
  
  invwind=addwind(5,17,84,62,txt)
- invwind.curmode=true
  invwind.cur=3
  invwind.col=col
  
  statwind=addwind(5,5,84,13,{"atk: 1  def: 1"})
  
+ curwind=invwind 
+end
+
+function showuse()
+ local itm=invwind.cur<3 and eqp[invwind.cur] or inv[invwind.cur-3]
+ if itm==nil then return end
+ local typ,txt=itm_type[itm],{}
+ 
+ if typ=="wep" or typ=="arm" then
+  add(txt,"equip")
+ end
+ if typ=="fud" then
+  add(txt,"eat")
+ end
+ if typ=="thr" or typ=="fud" then
+  add(txt,"throw")
+ end
+ add(txt,"trash")
+
+
+ usewind=addwind(84,invwind.cur*6+11,36,7+#txt*6,txt)
+ usewind.cur=1
+ curwind=usewind 
 end
 -->8
 --mobs and items
