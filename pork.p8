@@ -9,14 +9,16 @@ function _init()
  dirx={-1,1,0,0,1,1,-1,-1}
  diry={0,0,-1,1,-1,1,1,-1}
  
+ thrdir,thrdx,thrdy=2,0,-0
+ 
  mob_ani={240,192}
  mob_atk={1,1}
- mob_hp ={100,2}
+ mob_hp ={5,2}
  mob_los={4,4}
  
  itm_name ={"broad sword","leather armor","red bean paste","ninja star","rusty sword"}
  itm_type ={"wep","arm","fud","thr","wep"}
- itm_stat1={2,0,0,0,1}
+ itm_stat1={2,0,1,0,1}
  itm_stat2={0,2,0,0,0}
  
  debug={}
@@ -124,6 +126,20 @@ function update_inv()
  end
 end
 
+function update_throw()
+ local b=getbutt()
+ if b>=0 and  b<=3 then
+  thrdir=b
+ end
+ thrdx=dirx[thrdir+1]
+ thrdy=diry[thrdir+1]
+ if b==4 then
+  _upd=update_game
+ elseif b==5 then
+  throw()
+ end
+end
+
 function move_mnu(wnd)
  if btnp(2) then
   wnd.cur-=1
@@ -137,8 +153,10 @@ end
 function update_pturn()
  dobuttbuff()
  p_t=min(p_t+0.125,1)
-
- p_mob:mov()
+ 
+ if p_mob.mov then
+  p_mob:mov()
+ end
  
  if p_t==1 then
   _upd=update_game
@@ -213,6 +231,10 @@ function draw_game()
  for i=#mob,1,-1 do
   drawmob(mob[i])
  end
+ 
+ if _upd==update_throw then
+  line(p_mob.x*8+4,p_mob.y*8+4,p_mob.x*8+thrdx*16+4,p_mob.y*8+thrdy*16+4,7)
+ end 
  
  for x=0,15 do
   for y=0,15 do
@@ -422,7 +444,6 @@ function hitmob(atkm,defm)
  dmg-=min(def,dmg)
  --dmg=max(0,dmg)
  
- debug[1]=def
  defm.hp-=dmg
  defm.flash=10
  
@@ -433,6 +454,14 @@ function hitmob(atkm,defm)
   del(mob,defm)
   defm.dur=10
  end
+end
+
+function healmob(mb,hp)
+ hp=min(mb.hpmax-mb.hp,hp)
+ mb.hp+=hp
+ mb.flash=10
+ 
+ addfloat("+"..hp,mb.x*8,mb.y*8,7)
 end
 
 function checkend()
@@ -541,6 +570,19 @@ function updatestats()
  p_mob.atk=atk
  p_mob.defmin=dmin
  p_mob.defmax=dmax 
+end
+
+function eat(itm,mb)
+ local effect=itm_stat1[itm]
+ 
+ if effect==1 then
+  --heal
+  healmob(mb,1)
+ end
+end
+
+function throw()
+ _upd=update_game
 end
 -->8
 --ui
@@ -706,24 +748,40 @@ function triguse()
   inv[i-3]=eqp[slot]
   eqp[slot]=itm
  elseif verb=="eat" then
-  
+  eat(itm,p_mob)
+  inv[i-3]=nil
+  p_mob.mov=nil
+  after="turn"
  elseif verb=="throw" then
+  after="throw"
   
  end
  
  updatestats()
  
+ --fix thissss!!!
  if after=="back" then
   usewind.dur=0
   del(wind,invwind)
   del(wind,statwind)
   showinv()
   invwind.cur=i
+ elseif after=="turn" then
+  usewind.dur=0
+  invwind.dur=0
+  statwind.dur=0
+  p_t=0
+  _upd=update_pturn  
  elseif after=="game" then
   usewind.dur=0
   invwind.dur=0
   statwind.dur=0
   _upd=update_game
+ elseif after=="throw" then
+  usewind.dur=0
+  invwind.dur=0
+  statwind.dur=0
+  _upd=update_throw
  end
 end
 -->8
