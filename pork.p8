@@ -256,15 +256,6 @@ function draw_game()
    end
   end
  end
-
- for x=0,15 do
-  for y=0,15 do
-   if flags[x][y]!=0 then
-    pset(x*8+3,y*8+5,flags[x][y])
-   end
-  end
- end
-
  
  for f in all(float) do
   oprint8(f.txt,f.x,f.y,f.c,0)
@@ -999,6 +990,9 @@ function mapgen()
  mazeworm()
  placeflags()
  carvedoors()
+ carvescuts()
+ fillends()
+ 
 end
 
 ----------------
@@ -1106,11 +1100,11 @@ function digworm(x,y)
  
  repeat
   mset(x,y,1)
-  if not cancarve(x+dirx[dr],y+diry[dr]) or (rnd()<0.5 and stp>2) then
+  if not cancarve(x+dirx[dr],y+diry[dr],false) or (rnd()<0.5 and stp>2) then
    stp=0
    local cand={}
    for i=1,4 do
-    if cancarve(x+dirx[i],y+diry[i]) then
+    if cancarve(x+dirx[i],y+diry[i],false) then
      add(cand,i)
     end
    end
@@ -1126,8 +1120,8 @@ function digworm(x,y)
  until dr==8 
 end
 
-function cancarve(x,y)
- if inbounds(x,y) and not iswalkable(x,y) then
+function cancarve(x,y,walk)
+ if inbounds(x,y) and iswalkable(x,y)==walk then
   local sig=getsig(x,y)
   for i=1,#crv_sig do
    if bcomp(sig,crv_sig[i],crv_msk[i]) then 
@@ -1177,14 +1171,14 @@ end
 
 function growflag(_x,_y,flg)
  local cand,candnew={{x=_x,y=_y}}
-  
+ flags[_x][_y]=flg
  repeat
   candnew={}
   for c in all(cand) do
-   flags[c.x][c.y]=flg
    for d=1,4 do
     local dx,dy=c.x+dirx[d],c.y+diry[d]
     if iswalkable(dx,dy) and flags[dx][dy]!=flg then
+     flags[dx][dy]=flg
      add(candnew,{x=dx,y=dy})
     end
    end
@@ -1194,9 +1188,9 @@ function growflag(_x,_y,flg)
 end
 
 function carvedoors()
- local x1,y1,x2,y2,found,_f1,_f2=1,1,1,1
+ local x1,y1,x2,y2,found,_f1,_f2,drs=1,1,1,1
  repeat
-  local drs={}
+  drs={}
   for _x=0,15 do
    for _y=0,15 do
     if not iswalkable(_x,_y) then
@@ -1223,6 +1217,56 @@ function carvedoors()
   end
  until #drs==0
 end
+
+function carvescuts()
+ local x1,y1,x2,y2,cut,found,drs=1,1,1,1,0
+ repeat
+  drs={}
+  for _x=0,15 do
+   for _y=0,15 do
+    if not iswalkable(_x,_y) then
+     local sig=getsig(_x,_y)
+     found=false
+     if bcomp(sig,0b11000000,0b00001111) then
+      x1,y1,x2,y2,found=_x,_y-1,_x,_y+1,true
+     elseif bcomp(sig,0b00110000,0b00001111) then
+      x1,y1,x2,y2,found=_x+1,_y,_x-1,_y,true
+     end
+     if found then
+      calcdist(x1,y1)
+      if distmap[x2][y2]>20 then
+       add(drs,{x=_x,y=_y})
+      end
+     end
+    end
+   end
+  end
+  
+  if #drs>0 then
+   local d=getrnd(drs)
+   mset(d.x,d.y,1)
+   cut+=1
+  end
+ until #drs==0 or cut>=3
+end
+
+function fillends()
+ local cand
+ repeat
+  cand={}
+  for _x=0,15 do
+   for _y=0,15 do
+    if cancarve(_x,_y,true) then
+     add(cand,{x=_x,y=_y})
+    end
+   end
+  end
+  
+  for c in all(cand) do
+   mset(c.x,c.y,2)
+  end
+ until #cand==0
+end
 __gfx__
 000000000000000060666060d0ddd0d0f0fff0f000000000aaaaaaaa00aaa00000aaa00000000000000000000000000000aaa000a0aaa0a0a000000055555550
 000000000000000000000000000000000000000000000000aaaaaaaa0a000a000a000a00066666600aaaaaa066666660a0aaa0a000000000a0aa000000000000
@@ -1237,7 +1281,7 @@ __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
