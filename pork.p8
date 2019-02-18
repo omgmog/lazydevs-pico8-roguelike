@@ -996,7 +996,7 @@ end
 
 function genrooms()
  -- tweak dis
- local fmax,rmax=5,5 --5,4?
+ local fmax,rmax=5,4 --5,4?
  local mw,mh=6,6     --5,5?
  
  repeat
@@ -1073,21 +1073,50 @@ end
 ----------------
 
 function mazeworm()
- for x=0,15 do
-  for y=0,15 do
-   if not iswalkable(x,y) then
-    if cancarve(x,y) then
-     mset(x,y,3)
-    else
-     mset(x,y,2)
+ repeat
+  local cand={}
+  for _x=0,15 do
+   for _y=0,15 do
+    if not iswalkable(_x,_y) and getsig(_x,_y)==255 then
+     add(cand,{x=_x,y=_y})
     end
    end
   end
- end
+ 
+  if #cand>0 then
+   local c=getrnd(cand)
+   digworm(c.x,c.y)
+  end
+ until #cand<=1
+end
+
+function digworm(x,y)
+ local dr,stp=1+flr(rnd(4)),0
+ 
+ repeat
+  mset(x,y,1)
+  if not cancarve(x+dirx[dr],y+diry[dr]) or (rnd()<0.5 and stp>2) then
+   stp=0
+   local cand={}
+   for i=1,4 do
+    if cancarve(x+dirx[i],y+diry[i]) then
+     add(cand,i)
+    end
+   end
+   if #cand==0 then
+    dr=8
+   else
+    dr=getrnd(cand)
+   end
+  end
+  x+=dirx[dr]
+  y+=diry[dr]
+  stp+=1
+ until dr==8 
 end
 
 function cancarve(x,y)
- if inbounds(x,y) then
+ if inbounds(x,y) and not iswalkable(x,y) then
   local sig=getsig(x,y)
   for i=1,#crv_sig do
    if bcomp(sig,crv_sig[i],crv_msk[i]) then 
