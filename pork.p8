@@ -256,7 +256,7 @@ function draw_game()
    end
   end
  end
- 
+  
  for f in all(float) do
   oprint8(f.txt,f.x,f.y,f.c,0)
  end
@@ -1007,16 +1007,16 @@ function mapgen()
   end
  end
  --todo
- --advancing
- --no doors next to doors
- --entry not in an alcove
- --no doors on exit
- --no l-shape doors
+ --entry not in an alcove?
+ 
+ --hub level
  --monsters
  --items
  --decorations
- --remove isolated rooms
  
+ --remove isolated rooms
+ --no doors next to doors?
+
  rooms={}
  roomap=blankmap(0)
  doors={}
@@ -1127,6 +1127,21 @@ function mazeworm()
   if #cand>0 then
    local c=getrnd(cand)
    digworm(c.x,c.y)
+  end
+ until #cand<=1
+ 
+ repeat
+  local cand={}
+  for _x=0,15 do
+   for _y=0,15 do
+    if cancarve(_x,_y,false) and not nexttoroom(_x,_y) then
+     add(cand,{x=_x,y=_y})
+    end
+   end
+  end
+  if #cand>0 then
+   local c=getrnd(cand)
+   mset(c.x,c.y,1)
   end
  until #cand<=1
 end
@@ -1310,8 +1325,17 @@ function fillends()
 end
 
 function isdoor(x,y)
+ local sig=getsig(x,y)
+ if bcomp(sig,0b11000000,0b00001111) or bcomp(sig,0b00110000,0b00001111) then
+  return nexttoroom(x,y)
+ end
+ return false
+end
+
+function nexttoroom(x,y)
  for i=1,4 do
-  if inbounds(x+dirx[i],y+diry[i]) and roomap[x+dirx[i]][y+diry[i]]!=0 then
+  if inbounds(x+dirx[i],y+diry[i]) and 
+     roomap[x+dirx[i]][y+diry[i]]!=0 then
    return true
   end
  end
@@ -1320,7 +1344,7 @@ end
 
 function installdoors()
  for d in all(doors) do
-  if iswalkable(d.x,d.y) and isdoor(d.x,d.y) then
+  if mget(d.x,d.y)==1 and isdoor(d.x,d.y) then
    mset(d.x,d.y,13)
   end
  end
@@ -1335,7 +1359,6 @@ function startend()
  repeat
   px,py=flr(rnd(16)),flr(rnd(16))
  until iswalkable(px,py)
- 
  calcdist(px,py)
  --★
  for x=0,15 do
@@ -1351,7 +1374,7 @@ function startend()
  for x=0,15 do
   for y=0,15 do
    local tmp=distmap[x][y]
-   if tmp>high and cancarve(x,y,false) then
+   if tmp>high and (cancarve(x,y,false) or cancarve(x,y,true)) then
     ex,ey,high=x,y,tmp
    end
   end
@@ -1361,7 +1384,7 @@ function startend()
  for x=0,15 do
   for y=0,15 do
    local tmp=distmap[x][y]
-   if tmp>=0 and tmp<low and cancarve(x,y,false) then
+   if tmp>=0 and tmp<low and (cancarve(x,y,false) or cancarve(x,y,true)) then
     px,py,low=x,y,tmp
    end
   end
@@ -1387,7 +1410,7 @@ __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000008000000090000000b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
