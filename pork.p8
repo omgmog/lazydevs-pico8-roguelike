@@ -73,9 +73,12 @@ function startgame()
  
  _upd=update_game
  _drw=draw_game
+ 
+ genfloor(0)
+ 
  unfog()
  
- mapgen()
+ 
 end
 -->8
 --updates
@@ -149,15 +152,12 @@ function update_pturn()
  
  if p_t==1 then
   _upd=update_game
-  if checkend() then
-   --★
-   if skipai then
-    skipai=false
-   else
-    doai()
-   end
+  if trig_step() then return end
+
+  if checkend() and not skipai then
+   doai()
   end
-  calcdist(p_mob.x,p_mob.y)
+  skipai=false
  end
 end
 
@@ -428,6 +428,18 @@ function trig_bump(tle,destx,desty)
  end
 end
 
+function trig_step()
+ local tle=mget(p_mob.x,p_mob.y)
+
+ if tle==14 then
+  fadeout()
+  genfloor(floor+1)
+  floormsg()
+  return true
+ end
+ return false
+end
+
 function getmob(x,y)
  for m in all(mob) do
   if m.x==x and m.y==y then
@@ -556,7 +568,7 @@ function unfogtile(x,y)
 end
 
 function calcdist(tx,ty)
- local cand,step={},0
+ local cand,step,candnew={},0
  distmap=blankmap(-1)
  add(cand,{x=tx,y=ty})
  distmap[tx][ty]=0
@@ -817,6 +829,10 @@ function triguse()
   statwind.dur=0
  end
 end
+
+function floormsg()
+ showmsg("floor "..floor,120)
+end
 -->8
 --mobs and items
 
@@ -936,13 +952,13 @@ function ai_attac(m)
       bdst=dst
      end
      if dst==bdst then
-      add(cand,{x=dx,y=dy})
+      add(cand,i)
      end
     end
    end
    if #cand>0 then
     local c=getrnd(cand)
-    mobwalk(m,c.x,c.y)
+    mobwalk(m,dirx[c],diry[c])
     return true
    end 
    --todo: re-aquire target?
@@ -977,6 +993,12 @@ end
 -->8
 --gen
 
+function genfloor(f)
+ floor=f
+ mapgen()
+end
+
+
 function mapgen()
  --★
  for x=0,15 do
@@ -988,9 +1010,12 @@ function mapgen()
  --advancing
  --no doors next to doors
  --entry not in an alcove
+ --no doors on exit
+ --no l-shape doors
  --monsters
  --items
  --decorations
+ --remove isolated rooms
  
  rooms={}
  roomap=blankmap(0)
@@ -1000,8 +1025,8 @@ function mapgen()
  placeflags()
  carvedoors()
  carvescuts()
- fillends()
  startend()
+ fillends()
  installdoors()
 end
 
@@ -1036,7 +1061,7 @@ end
 function rndroom(mw,mh)
  --clamp max area
  local _w=3+flr(rnd(mw-2))
- mh=max(35/_w,3)
+ mh=mid(35/_w,3,mh)
  local _h=3+flr(rnd(mh-2))
  return {
   x=0,
@@ -1265,12 +1290,14 @@ function carvescuts()
 end
 
 function fillends()
- local cand
+ local cand,tle
  repeat
   cand={}
   for _x=0,15 do
    for _y=0,15 do
-    if cancarve(_x,_y,true) then
+    tle=mget(_x,_y)
+    --★
+    if cancarve(_x,_y,true) and tle!=14 and tle!=15 then
      add(cand,{x=_x,y=_y})
     end
    end
@@ -1310,6 +1337,7 @@ function startend()
  until iswalkable(px,py)
  
  calcdist(px,py)
+ --★
  for x=0,15 do
   for y=0,15 do
    local tmp=distmap[x][y]
@@ -1326,6 +1354,13 @@ function startend()
    if tmp>high and cancarve(x,y,false) then
     ex,ey,high=x,y,tmp
    end
+  end
+ end
+ mset(ex,ey,14)
+ 
+ for x=0,15 do
+  for y=0,15 do
+   local tmp=distmap[x][y]
    if tmp>=0 and tmp<low and cancarve(x,y,false) then
     px,py,low=x,y,tmp
    end
@@ -1335,7 +1370,7 @@ function startend()
  mset(px,py,15)
  p_mob.x=px
  p_mob.y=py
- mset(ex,ey,14)
+ 
 
 end
 __gfx__
