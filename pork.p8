@@ -24,9 +24,8 @@ function _init()
  mob_los=explodeval("4,4,4,4,4,4,4,4,4")
  mob_minf=explodeval("0,1,2,3,4,5,6,7,8")
  mob_maxf=explodeval("0,3,4,5,6,7,8,8,8")
- mob_spec=explode(",,,spawn?,fast?,stun,ghost?,slow,")
+ mob_spec=explode(",,,spawn?,fast?,stun,ghost,slow,")
 
- --★
  crv_sig=explodeval("255,214,124,179,233")
  crv_msk=explodeval("0,9,3,12,6")
 
@@ -77,8 +76,9 @@ function startgame()
  inv,eqp={},{}
  makeipool()
  foodnames()
- takeitem(16)
-  
+ takeitem(17)
+ takeitem(18)
+   
  wind={}
  float={}
 
@@ -527,6 +527,7 @@ function trig_step()
  local tle=mget(p_mob.x,p_mob.y)
 
  if tle==14 then
+  p_mob.bless=0
   fadeout()
   genfloor(floor+1)
   floormsg()
@@ -571,6 +572,14 @@ end
 function hitmob(atkm,defm,rawdmg)
  local dmg= atkm and atkm.atk or rawdmg
  
+ --add curse/bless
+ if defm.bless<0 then
+  dmg*=2
+ elseif defm.bless>0 then
+  dmg=flr(dmg/2)
+ end
+ defm.bless=0
+ 
  local def=defm.defmin+flr(rnd(defm.defmax-defm.defmin+1))
  dmg-=min(def,dmg)
  --dmg=max(0,dmg)
@@ -600,6 +609,22 @@ function stunmob(mb)
  mb.flash=10
  
  addfloat("stun",mb.x*8-3,mb.y*8,7)
+end
+
+function blessmob(mb,val)
+ mb.bless=mid(-1,1,mb.bless+val)
+ mb.flash=10
+ 
+ local txt="bless"
+ if val<0 then txt="curse" end
+ 
+ addfloat(txt,mb.x*8-6,mb.y*8,7)
+ 
+ if mb.spec=="ghost" and val>0 then
+  add(dmob,mb)
+  del(mob,mb)
+  mb.dur=10 
+ end
 end
 
 function checkend()
@@ -736,8 +761,10 @@ function eat(itm,mb)
   stunmob(mb)
  elseif effect==5 then
   --curse
+  blessmob(mb,-1)
  elseif effect==6 then  
   --bless
+  blessmob(mb,1)
  end
 end
 
@@ -886,11 +913,19 @@ function showinv()
   end
  end
  
+
  invwind=addwind(5,17,84,62,txt)
  invwind.cur=3
  invwind.col=col
- 
- statwind=addwind(5,5,84,13,{"atk: "..p_mob.atk.."  def: "..p_mob.defmin.."-"..p_mob.defmax})
+
+ txt="ok    "
+ if p_mob.bless<0 then
+  txt="curse "
+ elseif p_mob.bless>0 then
+  txt="bless "
+ end
+   
+ statwind=addwind(5,5,84,13,{txt.."atk:"..p_mob.atk.." def:"..p_mob.defmin.."-"..p_mob.defmax})
  
  curwind=invwind 
 end
@@ -970,6 +1005,10 @@ function addmob(typ,mx,my)
   ani={},
   flash=0,
   stun=false,
+  bless=0,
+  charge=1,
+  lastmoved=false,
+  spec=mob_spec[typ],
   hp=mob_hp[typ],
   hpmax=mob_hp[typ],
   atk=mob_atk[typ],
@@ -1029,7 +1068,8 @@ function doai()
    if m.stun then
     m.stun=false
    else
-    moving=m.task(m) or moving
+    m.lastmoved=m.task(m)
+    moving=m.lastmoved or moving
    end
   end
  end
@@ -1045,7 +1085,6 @@ function ai_wait(m)
   m.task=ai_attac
   m.tx,m.ty=p_mob.x,p_mob.y
   addfloat("!",m.x*8+2,m.y*8,10)
-  return true
  end
  return false
 end
@@ -1055,7 +1094,16 @@ function ai_attac(m)
   --attack player
   local dx,dy=p_mob.x-m.x,p_mob.y-m.y
   mobbump(m,dx,dy)
-  hitmob(m,p_mob)  
+  if m.spec=="stun" and m.charge>0 then
+   stunmob(p_mob)
+   m.charge-=1
+  elseif m.spec=="ghost" and m.charge>0 then
+   hitmob(m,p_mob)
+   blessmob(p_mob,-1)
+   m.charge-=1   
+  else
+   hitmob(m,p_mob)
+  end
   sfx(57)
   return true
  else
@@ -1068,7 +1116,10 @@ function ai_attac(m)
    --de aggro
    m.task=ai_wait
    addfloat("?",m.x*8+2,m.y*8,10)
-  else 
+  else
+   if m.spec=="slow" and m.lastmoved then
+    return false
+   end
    local bdst,cand=999,{}
    calcdist(m.tx,m.ty)
    for i=1,4 do
