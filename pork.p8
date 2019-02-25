@@ -15,7 +15,7 @@ function _init()
  itm_stat2=explodeval("0,0,0,0,0,0,1,2,3,4,3,3,0,0,0,0,0,0,0,0,0,0")
  itm_minf=explodeval("1,2,3,4,5,6,1,2,3,4,5,6,1,1,1,1,1,1,1,2,3,4")
  itm_maxf=explodeval("3,4,5,6,7,8,3,4,5,6,7,8,8,8,8,8,8,8,4,6,7,8")
- itm_desc=explode(",,,,,,,,,,,,heals,heals a lot,increases hp,stuns,is cursed,is blessed,,,,")
+ itm_desc=explode(",,,,,,,,,,,, heals, heals a lot, increases hp, stuns, is cursed, is blessed,,,,")
 
  mob_name=explode("player,slime,melt,shoggoth,mantis-man,giant scorpion,ghost,golem,drake")
  mob_ani=explodeval("240,192,196,200,204,208,212,216,220")
@@ -76,7 +76,8 @@ function startgame()
  
  inv,eqp={},{}
  makeipool()
- --takeitem(1)
+ foodnames()
+ takeitem(16)
   
  wind={}
  float={}
@@ -89,6 +90,7 @@ function startgame()
  
  _upd=update_game
  _drw=draw_game
+ 
  
  genfloor(0)
  
@@ -184,7 +186,12 @@ function update_aiturn()
  end
  if p_t==1 then
   _upd=update_game
-  checkend()
+  if checkend() then
+   if p_mob.stun then
+    p_mob.stun=false
+    doai()
+   end
+  end
  end
 end
 
@@ -472,7 +479,7 @@ function trig_bump(tle,destx,desty)
  if tle==7 or tle==8 then
   --vase
   sfx(59)
-  mset(destx,desty,1)
+  mset(destx,desty,76)
   if rnd(3)<1 and floor>0 then
    if rnd(5)<1 then
     addmob(getrnd(mobpool),destx,desty)
@@ -482,7 +489,7 @@ function trig_bump(tle,destx,desty)
     else
      local itm=getrnd(fipool_com)
      takeitem(itm)
-     showmsg(itm_name[itm],60)
+     showmsg(itm_name[itm].."!",60)
     end
    end
   end
@@ -586,6 +593,13 @@ function healmob(mb,hp)
  mb.flash=10
  
  addfloat("+"..hp,mb.x*8,mb.y*8,7)
+end
+
+function stunmob(mb)
+ mb.stun=true
+ mb.flash=10
+ 
+ addfloat("stun",mb.x*8-3,mb.y*8,7)
 end
 
 function checkend()
@@ -705,9 +719,25 @@ end
 function eat(itm,mb)
  local effect=itm_stat1[itm]
  
+ showmsg(itm_name[itm]..itm_desc[itm],120)
+ 
  if effect==1 then
   --heal
   healmob(mb,1)
+ elseif effect==2 then
+  --heal a lot
+  healmob(mb,3)
+ elseif effect==3 then
+  --plus maxhp
+  mb.hpmax+=1
+  healmob(mb,1)
+ elseif effect==4 then
+  --stun
+  stunmob(mb)
+ elseif effect==5 then
+  --curse
+ elseif effect==6 then  
+  --bless
  end
 end
 
@@ -939,6 +969,7 @@ function addmob(typ,mx,my)
   flp=false,
   ani={},
   flash=0,
+  stun=false,
   hp=mob_hp[typ],
   hpmax=mob_hp[typ],
   atk=mob_atk[typ],
@@ -995,7 +1026,11 @@ function doai()
  for m in all(mob) do
   if m!=p_mob then
    m.mov=nil
-   moving=m.task(m) or moving
+   if m.stun then
+    m.stun=false
+   else
+    moving=m.task(m) or moving
+   end
   end
  end
  if moving then
@@ -1096,7 +1131,7 @@ function spawnmobs()
    local x,y
    repeat
     x,y=flr(rnd(16)),flr(rnd(16))
-   until iswalkable(x,y,"checkmobs")
+   until iswalkable(x,y,"checkmobs") and (mget(x,y)==1 or mget(x,y)==4)
    addmob(getrnd(mobpool),x,y)
    placed+=1
   until placed>=minmons[floor]
@@ -1104,7 +1139,6 @@ function spawnmobs()
 end
 
 function infestroom(r)
- cls()
  local target,x,y=2+flr(rnd((r.w*r.h)/6-1))
  target=min(5,target)
  for i=1,target do
@@ -1177,6 +1211,20 @@ function getitm_rar()
   return itm
  else
   return getrnd(fipool_com)
+ end
+end
+
+function foodnames()
+ local fud,fu=explode("jerky,schnitzel,steak,gyros,fricassee,haggis,mett,kebab,burger,meatball,pizza,calzone,pasticio,chops,hams,ribs,roast,meatloaf,chili,stew,pie,wrap,taco,burrito,rolls,filet,salami,sandwich,casserole,spam,souvlaki")
+ local adj,ad=explode("yellow,green,blue,purple,black,sweet,salty,spicy,strange,old,dry,wet,smooth,soft,crusty,pickled,sour,leftover,mom's,steamed,hairy,smoked,mini,stuffed,classic,marinated,bbq,savory,baked,juicy,sloppy,cheesy,hot,cold,zesty") 
+
+ for i=1,#itm_name do
+  if itm_type[i]=="fud" then
+   fu,ad=getrnd(fud),getrnd(adj)
+   del(ful,fu)
+   del(adj,ad)
+   itm_name[i]=ad.." "..fu
+  end
  end
 end
 -->8
@@ -1545,8 +1593,8 @@ end
 function installdoors()
  for d in all(doors) do
   local dx,dy=d.x,d.y
-  if mget(dx,dy)==1 
-   or mget(dx,dy)==4 
+  if (mget(dx,dy)==1 
+   or mget(dx,dy)==4)
    and isdoor(dx,dy) 
    and not next2tile(dx,dy,13) then
    
@@ -1635,16 +1683,15 @@ function decorooms()
  tarr_dirt=explodeval("1,74,75,76")
  tarr_farn=explodeval("1,70,70,70,71,71,71,72,73,74")
  tarr_vase=explodeval("1,1,7,8")
- for r in all(rooms) do
-  local funcs,func={
-   deco_dirt,
-   deco_torch,
-   deco_carpet,
-   deco_farn,
-   deco_vase
-  }
-  func=getrnd(funcs)
-  
+ local funcs,func={
+  deco_dirt,
+  deco_torch,
+  deco_carpet,
+  deco_farn,
+  deco_vase
+ },deco_vase
+
+ for r in all(rooms) do  
   for x=0,r.w-1 do
    for y=r.h-1,1,-1 do
     if mget(r.x+x,r.y+y)==1 then
@@ -1652,7 +1699,7 @@ function decorooms()
     end
    end
   end
-  
+  func=getrnd(funcs)
  end
 end
 
@@ -1708,16 +1755,14 @@ function spawnchests()
 end
 
 function placechest(r,rare)
- local x,y
+ local x,y=10
  repeat
   x=r.x+flr(rnd(r.w-2))+1
   y=r.y+flr(rnd(r.h-2))+1
- until mget(x,y)==1 and not next2tile(x,y,13)
- if rare then
-  mset(x,y,12)
- else
-  mset(x,y,10)
- end
+ until mget(x,y)==1
+ --6168
+ local tle=rare and 12 or 10
+ mset(x,y,tle)
 end
 __gfx__
 000000000000000066606660000000006660666066606660aaaaaaaa00aaa00000aaa00000000000000000000000000000aaa000a0aaa0a0a000000055555550
