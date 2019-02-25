@@ -9,16 +9,17 @@ function _init()
  dirx=explodeval("-1,1,0,0,1,1,-1,-1")
  diry=explodeval("0,0,-1,1,-1,1,1,-1")
  
- mob_ani=explodeval("240,192")
- mob_atk=explodeval("1,1")
- mob_hp =explodeval("5,1")
- mob_los=explodeval("4,4")
- 
- itm_name =explode("broad sword,leather armor,red bean paste,ninja star,rusty sword")
- itm_type =explode("wep,arm,fud,thr,wep")
+ itm_name=explode("broad sword,leather armor,red bean paste,ninja star,rusty sword")
+ itm_type=explode("wep,arm,fud,thr,wep")
  itm_stat1=explodeval("2,0,1,1,1")
  itm_stat2=explodeval("0,2,0,0,0")
- 
+
+ mob_name=explode("player,slime")
+ mob_ani=explodeval("240,192")
+ mob_atk=explodeval("1,1")
+ mob_hp=explodeval("5,1")
+ mob_los=explodeval("4,4")
+
  --★
  crv_sig={0b11111111,0b11010110,0b01111100,0b10110011,0b11101001}
  crv_msk={0,0b00001001,0b00000011,0b00001100,0b00000110}
@@ -59,7 +60,7 @@ function startgame()
  
  skipai=false
  win=false
- winfloor=9
+ winfloor=2
  --★
  mob={}
  dmob={}
@@ -1115,14 +1116,13 @@ function mapgen()
  copymap(48,0)
  --todo
 
- --room decorations
- --tile decoration
  --bettermonsters 
- --items
+ --items/chests
 
  --entry not in an alcove? 
+ --decos dont kill enty
  --remove isolated rooms
- --no doors next to doors?
+
  rooms={}
  roomap=blankmap(0)
  doors={}
@@ -1455,7 +1455,7 @@ end
 
 function installdoors()
  for d in all(doors) do
-  if mget(d.x,d.y)==1 or mget(d.x,d.y)==4 and isdoor(d.x,d.y) then
+  if mget(d.x,d.y)==1 or mget(d.x,d.y)==4 and isdoor(d.x,d.y) and not next2tile(d.x,d.y,13) then
    mset(d.x,d.y,13)
   end
  end
@@ -1542,7 +1542,9 @@ function decorooms()
   local funcs,func={
    deco_dirt,
    deco_torch,
-   deco_carpet
+   deco_carpet,
+   deco_farn,
+   deco_vase
   }
   func=getrnd(funcs)
   
@@ -1578,6 +1580,25 @@ function deco_dirt(r,tx,ty,x,y)
   mset(tx,ty,getrnd(tarr))
  end
 end
+
+function deco_farn(r,tx,ty,x,y)
+ if mget(tx,ty)==1 then
+  local tarr=explodeval("1,70,70,70,71,71,71,72,73,74")
+  mset(tx,ty,getrnd(tarr))
+ end
+end
+
+function deco_vase(r,tx,ty,x,y)
+ if mget(tx,ty)==1 and 
+    iswalkable(tx,ty,"checkmobs") and 
+    not next2tile(tx,ty,13) and
+    not bcomp(getsig(tx,ty),0,0b00001111) then
+   
+  local tarr=explodeval("1,1,7,8")
+  mset(tx,ty,getrnd(tarr))
+ end
+end
+
 __gfx__
 000000000000000066606660000000006660666066606660aaaaaaaa00aaa00000aaa00000000000000000000000000000aaa000a0aaa0a0a000000055555550
 000000000000000000000000000000000000000000000000aaaaaaaa0a000a000a000a00066666600aaaaaa066666660a0aaa0a000000000a0aa000000000000
