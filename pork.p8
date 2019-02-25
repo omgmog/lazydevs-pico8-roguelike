@@ -27,8 +27,8 @@ function _init()
  mob_spec=explode(",,,spawn?,fast?,stun,ghost?,slow,")
 
  --★
- crv_sig={0b11111111,0b11010110,0b01111100,0b10110011,0b11101001}
- crv_msk={0,0b00001001,0b00000011,0b00001100,0b00000110}
+ crv_sig=explodeval("255,214,124,179,233")
+ crv_msk=explodeval("0,9,3,12,6")
 
  wall_sig=explodeval("251,233,253,84,146,80,16,144,112,208,241,248,210,177,225,120,179,0,124,104,161,64,240,128,224,176,242,244,116,232,178,212,247,214,254,192,48,96,32,160,245,250,243,249,246,252")
  wall_msk=explodeval("0,6,0,11,13,11,15,13,3,9,0,0,9,12,6,3,12,15,3,7,14,15,0,15,6,12,0,0,3,6,12,9,0,9,0,15,15,7,15,14,0,0,0,0,0,0")
@@ -75,7 +75,7 @@ function startgame()
  p_t=0
  
  inv,eqp={},{}
-
+ makeipool()
  --takeitem(1)
   
  wind={}
@@ -473,18 +473,34 @@ function trig_bump(tle,destx,desty)
   --vase
   sfx(59)
   mset(destx,desty,1)
-  if rnd(4)<1 then
-   local itm=flr(rnd(#itm_name))+1
-   takeitem(itm)
-   showmsg(itm_name[itm],60)
+  if rnd(3)<1 and floor>0 then
+   if rnd(5)<1 then
+    addmob(getrnd(mobpool),destx,desty)
+   else
+    if freeinvslot()==0 then
+     showmsg("inventory full",120)
+    else
+     local itm=getrnd(fipool_com)
+     takeitem(itm)
+     showmsg(itm_name[itm],60)
+    end
+   end
   end
  elseif tle==10 or tle==12 then
   --chest
-  sfx(61)
-  mset(destx,desty,tle-1)
-  local itm=flr(rnd(#itm_name))+1
-  takeitem(itm)
-  showmsg(itm_name[itm],60)
+  if freeinvslot()==0 then
+   showmsg("inventory full",120)
+   skipai=true
+  else
+   local itm=getrnd(fipool_com)
+   if tle==12 then
+    itm=getitm_rar()  
+   end
+   sfx(61)
+   mset(destx,desty,tle-1)
+   takeitem(itm)
+   showmsg(itm_name[itm].."!",60)
+  end
  elseif tle==13 then
   --door
   sfx(62)
@@ -1082,14 +1098,15 @@ function spawnmobs()
     x,y=flr(rnd(16)),flr(rnd(16))
    until iswalkable(x,y,"checkmobs")
    addmob(getrnd(mobpool),x,y)
+   placed+=1
   until placed>=minmons[floor]
  end
 end
 
 function infestroom(r)
- local target=2+flr(rnd(3))
- local x,y
- 
+ cls()
+ local target,x,y=2+flr(rnd((r.w*r.h)/6-1))
+ target=min(5,target)
  for i=1,target do
   repeat
    x=r.x+flr(rnd(r.w))
@@ -1119,11 +1136,55 @@ function freeinvslot()
  end
  return 0
 end
+
+function makeipool()
+ ipool_rar={}
+ ipool_com={}
+ 
+ for i=1,#itm_name do
+  local t=itm_type[i]
+  if t=="wep" or t=="arm" then
+   add(ipool_rar,i)
+  else
+   add(ipool_com,i)  
+  end
+ end
+end
+
+function makefipool()
+ fipool_rar={}
+ fipool_com={}
+ 
+ for i in all(ipool_rar) do
+  if itm_minf[i]<=floor 
+   and itm_maxf[i]>=floor then
+   add(fipool_rar,i)
+  end
+ end
+ for i in all(ipool_com) do
+  if itm_minf[i]<=floor 
+   and itm_maxf[i]>=floor then
+   add(fipool_com,i)
+  end
+ end
+end
+
+function getitm_rar()
+ if #fipool_rar>0 then
+  local itm=getrnd(fipool_rar)
+  del(fipool_rar,itm)
+  del(ipool_rar,itm)
+  return itm
+ else
+  return getrnd(fipool_com)
+ end
+end
 -->8
 --gen
 
 function genfloor(f)
  floor=f
+ makefipool()
  mob={}
  add(mob,p_mob)
  fog=blankmap(0)
@@ -1163,7 +1224,8 @@ function mapgen()
  prettywalls()
 
  installdoors()
-  
+ 
+ spawnchests()
  spawnmobs()
  decorooms()
 end
@@ -1628,6 +1690,35 @@ function deco_vase(r,tx,ty,x,y)
  end
 end
 
+function spawnchests()
+ local chestdice,rpot,rare,place=explodeval("0,1,1,1,2,3"),{},true
+ place=getrnd(chestdice)
+ 
+ for r in all(rooms) do
+  add(rpot,r)
+ end
+ 
+ while place>0 and #rpot>0 do
+  local r=getrnd(rpot)
+  placechest(r,rare)
+  rare=false
+  place-=1
+  del(rpot,r)
+ end
+end
+
+function placechest(r,rare)
+ local x,y
+ repeat
+  x=r.x+flr(rnd(r.w-2))+1
+  y=r.y+flr(rnd(r.h-2))+1
+ until mget(x,y)==1 and not next2tile(x,y,13)
+ if rare then
+  mset(x,y,12)
+ else
+  mset(x,y,10)
+ end
+end
 __gfx__
 000000000000000066606660000000006660666066606660aaaaaaaa00aaa00000aaa00000000000000000000000000000aaa000a0aaa0a0a000000055555550
 000000000000000000000000000000000000000000000000aaaaaaaa0a000a000a000a00066666600aaaaaa066666660a0aaa0a000000000a0aa000000000000
