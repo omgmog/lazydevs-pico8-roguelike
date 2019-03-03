@@ -3,6 +3,7 @@ version 16
 __lua__
 function _init()
  t=0
+ shake=0
  
  dpal=explodeval("0,1,1,2,1,13,6,4,4,9,3,13,1,13,14")
  
@@ -47,6 +48,7 @@ function _update60()
 end
 
 function _draw()
+ doshake()
  _drw()
  drawind()
  drawlogo()
@@ -61,7 +63,8 @@ function _draw()
 end
 
 function startgame()
- music(63)
+ poke(0x3101,194)
+ music(0)
  tani=0
  fadeperc=1
  buttbuff=-1
@@ -83,7 +86,7 @@ function startgame()
  makeipool()
  foodnames()
  --takeitem(17)
-   
+ 
  wind={}
  float={}
 
@@ -119,13 +122,18 @@ end
 
 function update_inv()
  --inventory
- move_mnu(curwind)
+ if move_mnu(curwind) and curwind==invwind then
+  showhint()
+ end
  if btnp(4) then
   sfx(53)
   if curwind==invwind then
    _upd=update_game
    invwind.dur=0
    statwind.dur=0
+   if hintwind then
+    hintwind.dur=0
+   end
   --★
   elseif curwind==usewind then
    usewind.dur=0
@@ -157,14 +165,18 @@ function update_throw()
 end
 
 function move_mnu(wnd)
+ local moved=false
  if btnp(2) then
   sfx(56)
   wnd.cur-=1
+  moved=true
  elseif btnp(3) then
   sfx(56)
   wnd.cur+=1
+  moved=true
  end
  wnd.cur=(wnd.cur-1)%#wnd.txt+1
+ return moved
 end
 
 
@@ -253,11 +265,11 @@ function draw_game()
  animap()
  map()
  for m in all(dmob) do
-  if sin(time()*8)>0 then
+  if sin(time()*8)>0 or m==p_mob then
    drawmob(m)
   end
   m.dur-=1
-  if m.dur<=0 then
+  if m.dur<=0 and m!=p_mob then
    del(dmob,m)
   end
  end
@@ -494,6 +506,13 @@ function toval(_arr)
  end
  return _retarr
 end
+
+function doshake()
+ local shakex,shakey=16-rnd(32),16-rnd(32)
+ camera(shakex*shake,shakey*shake)
+ shake*=0.95
+ if (shake<0.05) shake=0
+end
 -->8
 --gameplay
 
@@ -537,10 +556,13 @@ function trig_bump(tle,destx,desty)
   if rnd(3)<1 and floor>0 then
    if rnd(5)<1 then
     addmob(getrnd(mobpool),destx,desty)
+    sfx(60)
    else
     if freeinvslot()==0 then
      showmsg("inventory full",120)
+     sfx(60)
     else
+     sfx(61)
      local itm=getrnd(fipool_com)
      takeitem(itm)
      showmsg(itm_name[itm].."!",60)
@@ -552,6 +574,7 @@ function trig_bump(tle,destx,desty)
   if freeinvslot()==0 then
    showmsg("inventory full",120)
    skipai=true
+   sfx(60)
   else
    local itm=getrnd(fipool_com)
    if tle==12 then
@@ -645,6 +668,8 @@ function hitmob(atkm,defm,rawdmg)
  
  addfloat("-"..dmg,defm.x*8,defm.y*8,9)
  
+ shake=defm==p_mob and 0.08 or 0.04
+ 
  if defm.hp<=0 then
   if defm!=p_mob then 
    st_kills+=1 
@@ -693,12 +718,12 @@ end
 
 function checkend()
  if win then
-  music(23)
+  music(24)
   gover_spr,gover_x,gover_w=112,15,13
   showgover()
   return false
  elseif p_mob.hp<=0 then
-  music(21)  
+  music(22)  
   gover_spr,gover_x,gover_w=80,28,9
   showgover()
   return false
@@ -715,16 +740,17 @@ function los(x1,y1,x2,y2)
  local frst,sx,sy,dx,dy=true
  --★
  if dist(x1,y1,x2,y2)==1 then return true end
+ if y1>y2 then
+  x1,x2,y1,y2=x2,x1,y2,y1
+ end
+ sy,dy=1,y2-y1
+
  if x1<x2 then
   sx,dx=1,x2-x1
  else
   sx,dx=-1,x1-x2
  end
- if y1<y2 then
-  sy,dy=1,y2-y1
- else
-  sy,dy=-1,y1-y2
- end
+ 
  local err,e2=dx-dy
  
  while not(x1==x2 and y1==y2) do
@@ -759,7 +785,7 @@ function unfogtile(x,y)
  if iswalkable(x,y,"sight") then
   for i=1,4 do
    local tx,ty=x+dirx[i],y+diry[i]
-   if inbounds(tx,ty) and not iswalkable(tx,ty,"sight") then
+   if inbounds(tx,ty) and not iswalkable(tx,ty) then
     fog[tx][ty]=0
    end
   end  
@@ -810,7 +836,10 @@ end
 function eat(itm,mb)
  local effect=itm_stat1[itm]
  
- showmsg(itm_name[itm]..itm_desc[itm],120)
+ if not itm_known[itm] then
+  showmsg(itm_name[itm]..itm_desc[itm],120)
+  itm_known[itm]=true
+ end  
  
  if mb==p_mob then st_meals+=1 end
  
@@ -995,7 +1024,7 @@ function showinv()
    
  statwind=addwind(5,5,84,13,{txt.."atk:"..p_mob.atk.." def:"..p_mob.defmin.."-"..p_mob.defmax})
  
- curwind=invwind 
+ curwind=invwind
 end
 
 function showuse()
@@ -1051,14 +1080,36 @@ function triguse()
   del(wind,statwind)
   showinv()
   invwind.cur=i
+  showhint()
  else
   invwind.dur=0
   statwind.dur=0
+  if hintwind then
+   hintwind.dur=0
+  end
  end
 end
 
 function floormsg()
  showmsg("floor "..floor,120)
+end
+
+function showhint()
+ if hintwind then
+  hintwind.dur=0
+  hintwind=nil
+ end
+ 
+ if invwind.cur>3 then
+  local itm=inv[invwind.cur-3]
+  
+  if itm and itm_type[itm]=="fud" then
+   local txt=itm_known[itm] and itm_name[itm]..itm_desc[itm] or "???"
+   hintwind=addwind(5,78,#txt*4+7,13,{txt})
+  end
+ 
+ end
+ 
 end
 -->8
 --mobs and items
@@ -1145,6 +1196,8 @@ function doai()
  if moving then
   _upd=update_aiturn
   p_t=0
+ else
+  p_mob.stun=false
  end
 end
 
@@ -1259,13 +1312,14 @@ function spawnmobs()
 end
 
 function infestroom(r)
+ if r.nospawn then return 0 end
  local target,x,y=2+flr(rnd((r.w*r.h)/6-1))
  target=min(5,target)
  for i=1,target do
   repeat
    x=r.x+flr(rnd(r.w))
    y=r.y+flr(rnd(r.h))
-  until iswalkable(x,y,"checkmobs")
+  until iswalkable(x,y,"checkmobs") and (mget(x,y)==1 or mget(x,y)==4)
   addmob(getrnd(mobpool),x,y)
  end
  return target
@@ -1338,12 +1392,14 @@ function foodnames()
  local fud,fu=explode("jerky,schnitzel,steak,gyros,fricassee,haggis,mett,kebab,burger,meatball,pizza,calzone,pasticio,chops,hams,ribs,roast,meatloaf,chili,stew,pie,wrap,taco,burrito,rolls,filet,salami,sandwich,casserole,spam,souvlaki")
  local adj,ad=explode("yellow,green,blue,purple,black,sweet,salty,spicy,strange,old,dry,wet,smooth,soft,crusty,pickled,sour,leftover,mom's,steamed,hairy,smoked,mini,stuffed,classic,marinated,bbq,savory,baked,juicy,sloppy,cheesy,hot,cold,zesty") 
 
+ itm_known={}
  for i=1,#itm_name do
   if itm_type[i]=="fud" then
    fu,ad=getrnd(fud),getrnd(adj)
    del(fud,fu)
    del(adj,ad)
    itm_name[i]=ad.." "..fu
+   itm_known[i]=false
   end
  end
 end
@@ -1358,7 +1414,7 @@ function genfloor(f)
  fog=blankmap(0)
  if floor==1 then 
   st_steps=0
-  music(0)
+  poke(0x3101,66)
  end
  if floor==0 then  
   copymap(16,0)
@@ -1386,9 +1442,6 @@ function mapgen()
   mazeworm() 
   placeflags()
   carvedoors()
-  if #flaglib>1 then
-   debug[1]="reconnected area"
-  end
  until #flaglib==1
  
  carvescuts()
@@ -1401,16 +1454,6 @@ function mapgen()
  spawnchests()
  spawnmobs()
  decorooms()
-end
-
---★
-function snapshot()
- return
- --[[cls()
- map()
- for i=0,1 do
-  flip()
- end]]
 end
 
 ----------------
@@ -1430,7 +1473,6 @@ function genrooms()
     mh/=2
    end
    rmax-=1
-   snapshot()
   else
    fmax-=1
    --★
@@ -1441,8 +1483,6 @@ function genrooms()
    end
   end
  until fmax<=0 or rmax<=0
- --debug[1]="fails: "..fmax
- --debug[2]="rooms: "..rmax
 end
 
 function rndroom(mw,mh)
@@ -1523,7 +1563,6 @@ function digworm(x,y)
  
  repeat
   mset(x,y,1)
-  snapshot()
   if not cancarve(x+dirx[dr],y+diry[dr],false) or (rnd()<0.5 and stp>2) then
    stp=0
    local cand={}
@@ -1648,7 +1687,6 @@ function carvedoors()
    --★
    add(doors,d)
    mset(d.x,d.y,1)
-   snapshot()
    growflag(d.x,d.y,d.f1)
    del(flaglib,d.f2)
   end
@@ -1683,7 +1721,6 @@ function carvescuts()
    local d=getrnd(drs)
    add(doors,d)
    mset(d.x,d.y,1)
-   snapshot()
    cut+=1
   end
  until #drs==0 or cut>=3
@@ -1700,7 +1737,6 @@ function fillends()
     if cancarve(_x,_y,true) and tle!=14 and tle!=15 then
      filled=true
      mset(_x,_y,2)
-     snapshot()
     end
    end
   end
@@ -1715,8 +1751,9 @@ function isdoor(x,y)
  return false
 end
 
-function nexttoroom(x,y)
- for i=1,4 do
+function nexttoroom(x,y,dirs)
+ local dirs = dirs or 4
+ for i=1,dirs do
   if inbounds(x+dirx[i],y+diry[i]) and 
      roomap[x+dirx[i]][y+diry[i]]!=0 then
    return true
@@ -1769,28 +1806,29 @@ function startend()
  end
  mset(ex,ey,14)
  
- debugmap=blankmap(0)
  for x=0,15 do
   for y=0,15 do
    local tmp=distmap[x][y]
    if tmp>=0 then
     local score=starscore(x,y)
     tmp=tmp-score
-    if tmp<low then
+    if tmp<low and score>=0 then
      px,py,low=x,y,tmp
     end
    end
   end
  end
  
- --★
+ if roomap[px][py]>0 then
+  rooms[roomap[px][py]].nospawn=true
+ end
  mset(px,py,15)
  p_mob.x,p_mob.y=px,py
 end
 
 function starscore(x,y)
  if roomap[x][y]==0 then
-  if nexttoroom(x,y) then return -1 end
+  if nexttoroom(x,y,8) then return -1 end
   if freestanding(x,y)>0 then
    return 5
   else
@@ -1799,11 +1837,7 @@ function starscore(x,y)
  else
   local scr=freestanding(x,y)
   if scr>0 then
-   if scr<=8 then
-    return 3
-   else
-    return 0
-   end
+   return scr<=8 and 3 or 0
   end
  end
  return -1
@@ -1824,11 +1858,7 @@ function prettywalls()
    local tle=mget(x,y)
    if tle==2 then
     local ntle=sigarray(getsig(x,y),wall_sig,wall_msk)
-    if ntle==0 then
-     tle=3
-    else
-     tle=15+ntle
-    end    
+    tle = ntle==0 and 3 or 15+ntle
     mset(x,y,tle)
    elseif tle==1 then
     if not iswalkable(x,y-1) then
@@ -1843,15 +1873,21 @@ function decorooms()
  tarr_dirt=explodeval("1,74,75,76")
  tarr_farn=explodeval("1,70,70,70,71,71,71,72,73,74")
  tarr_vase=explodeval("1,1,7,8")
- local funcs,func={
+ local funcs,func,rpot={
   deco_dirt,
   deco_torch,
   deco_carpet,
   deco_farn,
   deco_vase
- },deco_vase
+ },deco_vase,{}
 
- for r in all(rooms) do  
+ for r in all(rooms) do
+  add(rpot,r)
+ end
+
+ repeat
+  local r=getrnd(rpot)
+  del(rpot,r)
   for x=0,r.w-1 do
    for y=r.h-1,1,-1 do
     if mget(r.x+x,r.y+y)==1 then
@@ -1860,7 +1896,7 @@ function decorooms()
    end
   end
   func=getrnd(funcs)
- end
+ until #rpot==0
 end
 
 function deco_torch(r,tx,ty,x,y)
@@ -1915,14 +1951,12 @@ function spawnchests()
 end
 
 function placechest(r,rare)
- local x,y=10
+ local x,y
  repeat
   x=r.x+flr(rnd(r.w-2))+1
   y=r.y+flr(rnd(r.h-2))+1
  until mget(x,y)==1
- --6168
- local tle=rare and 12 or 10
- mset(x,y,tle)
+ mset(x,y,rare and 12 or 10)
 end
 
 function freestanding(x,y)
@@ -2025,22 +2059,22 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc0000000000000000
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc0000000000000000
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc0000000000000000
-00000000000000000000000000000000000006000000000006000000000000006600660000000000600060000000000000666000006660000066600000666000
-00000000006660000000000000000000006600600006600060066000006600000060006066006600600060006600660000606600006066000060660000606600
-00666000060666000066600000000000006660606066600060666000006660600060006000600060060006000060006066066660660666600006666000066660
-06066600060666000606660006666660066666006066006006666600600660600606660006066600060666000606660060666660606666606666666066666660
-60666660066666006066666060066666600666000666660006660060066666006060606060606660606666606066606000606600006606606060660060666660
-66666660066666006666666066666666606660000666600000666060006666006066066060666060606060606060666000000660000660660000066000066066
-06666600006660000666660006666660006666000066660006666000066660000666666006606660066606600666606000006600006606000000660000660660
+00000000000000000000000000000000000006000000000006000000000000000000000000060006000000000066006600066600000666000006660000066600
+00000000006660000000000000000000006600600006600060066000006600000066006600060006006600660600060000660600006606000066060000660600
+00666000060666000066600000000000006660606066600060666000006660600600060000600060060006000600060006666000066660000666606606666066
+06066600060666000606660006666660066666006066006006666600600660600066606000666060006660600066606006666666066666660666660606666606
+60666660066666006066666060066666600666000666660006660060066666000606660606666606066606060606060606666606006606060660660000660600
+66666660066666006666666066666666606660000666600000666060006666000666060606060606060666060660660666066000066000006606600006600000
+06666600006660000666660006666660006666000066660006666000066660000606666006606660066606600666666006606600006600000060660000660000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00066600000000000000000000000000000000000000000000000000006600000000000000666000000000000000000000666600666666000066660000666600
-00600660006666000000000000666600006600000000000000660000066660000066600066666600006660000000000066066000660660006606600066666000
-00000060060006606666660006000660066660000066000006666000006060006666660060666600666666000066600066666600006666006666660066666600
-00006660000066600000666000006660006060000666600000606000666660606066660066666660606666006666660000006000000060000000600000006000
-00666600006666000066660000666600666660600060600066666060606666606666666000666660666666606066660000660060006600000066006000660000
-66066060660660606606606066066060606666606666606060666660000666000066666066666660006666606666666006660060066600000666006006660000
-06606060066060600660606006606060000666006066666000066600000000006666666060606660666666600066666000666600006666600066660000666660
-00000000000000000000000000000000000000000006660000000000000000006060666000066660606066606666666000000000000000000000000000000000
+00000000000000000000000000666000000066000000000000000000000000000000000000000000000666000000000000666600006666000066666600666600
+00666600000000000066660006600600000666600000660000000000000066000000000000066600006666660006660000066666000660660006606600066066
+06600060006666660660006006000000000606000006666000006600000666600006660000666666006666060066666600666666006666660066660000666666
+06660000066600000666000006660000060666660006060000066660000606000066666600666606066666660066660600060000000600000006000000060000
+00666600006666000066660000666600066666060606666600060600060666660066660606666666066666000666666600006600060066000000660006006600
+06066066060660660606606606066066006660000666660606066666066666060666666606666600066666660666660000006660060066600000666006006660
+06060660060606600606066006060660000000000066600006666606006660000666660006666666066606060666666606666600006666000666660000666600
+00000000000000000000000000000000000000000000000000666000000000000666666606660606066660000666060600000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -2143,6 +2177,7 @@ __sfx__
 00010000210302703025040230301a030190100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000100000d720137200d7100c40031200312000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __music__
+03 00424344
 01 00031843
 00 04071947
 00 080e1a4e
@@ -2167,44 +2202,4 @@ __music__
 04 2a2b2c44
 00 6d6e6f44
 04 30313244
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-00 41424344
-03 00424344
 
